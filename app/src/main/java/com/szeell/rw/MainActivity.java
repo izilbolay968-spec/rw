@@ -1,4 +1,3 @@
-```java
 package com.szeell.rw;
 
 import android.app.Activity;
@@ -145,4 +144,111 @@ public class MainActivity extends Activity {
         i.setType("image/*");
 
         try {
-            startActivityForResult
+            startActivityForResult(i, PICK_IMAGE);
+        } catch (Exception e) {
+            Toast.makeText(
+                this,
+                "Tidak dapat membuka pemilih gambar",
+                Toast.LENGTH_SHORT
+            ).show();
+        }
+    }
+
+    @Override
+    protected void onActivityResult(
+        int requestCode,
+        int resultCode,
+        Intent data
+    ) {
+        super.onActivityResult(requestCode, resultCode, data);
+
+        if (requestCode != PICK_IMAGE ||
+            resultCode != RESULT_OK ||
+            data == null ||
+            data.getData() == null) {
+            return;
+        }
+
+        Uri uri = data.getData();
+        status.setText("Sedang membaca screenshot…");
+
+        try {
+            InputImage image = InputImage.fromFilePath(this, uri);
+
+            TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
+                .process(image)
+                .addOnSuccessListener(this::showRecognizedText)
+                .addOnFailureListener(e -> {
+                    status.setText("Gagal membaca gambar.");
+                    result.setText(
+                        "Coba pilih screenshot lain yang lebih jelas."
+                    );
+                });
+
+        } catch (Exception e) {
+            status.setText("Tidak dapat membuka gambar.");
+            Toast.makeText(
+                this,
+                "Gambar tidak dapat dibuka",
+                Toast.LENGTH_SHORT
+            ).show();
+        }
+    }
+
+    private void showRecognizedText(Text text) {
+        String raw = text.getText();
+        String lower = raw.toLowerCase(Locale.ROOT);
+        StringBuilder out = new StringBuilder();
+
+        out.append("RINGKASAN RANK YANG TERBACA\n\n");
+
+        addCount(out, "Mythic", lower,
+            new String[]{"mythic", "mythical glory", "mythical immortal"});
+        addCount(out, "Legend", lower, new String[]{"legend"});
+        addCount(out, "Epic", lower, new String[]{"epic"});
+
+        out.append("\nTEKS HASIL OCR\n");
+
+        if (raw.trim().isEmpty()) {
+            out.append("Tidak ada teks yang berhasil dibaca.");
+        } else {
+            String trimmed = raw.trim();
+            out.append(
+                trimmed.length() > 4500
+                    ? trimmed.substring(0, 4500) + "\n…(dipotong)"
+                    : trimmed
+            );
+        }
+
+        result.setText(out.toString());
+        status.setText(
+            "Pemindaian selesai. Periksa hasilnya karena OCR bisa salah."
+        );
+    }
+
+    private void addCount(
+        StringBuilder out,
+        String label,
+        String lower,
+        String[] variants
+    ) {
+        int count = 0;
+
+        for (String v : variants) {
+            Matcher m = Pattern.compile(
+                Pattern.quote(v),
+                Pattern.CASE_INSENSITIVE
+            ).matcher(lower);
+
+            while (m.find()) {
+                count++;
+            }
+        }
+
+        out.append("• ")
+            .append(label)
+            .append(": ")
+            .append(count)
+            .append(" kemunculan teks\n");
+    }
+}
